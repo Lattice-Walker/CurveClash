@@ -2,7 +2,7 @@ CORRECTED VERSION
 
 # Curve Clash
 
-A static, zero-build 2D equation battle game made with HTML, CSS, Canvas, and vanilla JavaScript. Math expressions are parsed by math.js and rendered with KaTeX. There is no Node runtime, application server, API, or backend.
+[Curve Clash](https://lattice-walker.github.io/CurveClash/) is a static, zero-build 2D equation battle game made with HTML, CSS, Canvas, and vanilla JavaScript. Math expressions are parsed by math.js and rendered with KaTeX. There is no Node runtime, application server, API, or backend.
 
 ## Equation input
 
