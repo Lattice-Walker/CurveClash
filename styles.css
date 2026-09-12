@@ -1906,29 +1906,6 @@ select {
   text-align: center;
 }
 
-.end-emblem {
-  position: relative;
-  display: grid;
-  width: 94px;
-  height: 94px;
-  place-items: center;
-  margin: 0 auto 21px;
-  border: 1px solid rgba(138, 120, 202, 0.22);
-  border-radius: 31px;
-  color: var(--lavender-strong);
-  background: linear-gradient(145deg, var(--lavender-soft), var(--pink-soft));
-  box-shadow: var(--shadow-glow);
-  font-size: 2.6rem;
-  transform: rotate(-4deg);
-}
-
-.end-card.defeat .end-emblem,
-.defeat-card .end-emblem {
-  color: var(--peach-strong);
-  background: linear-gradient(145deg, var(--peach-soft), var(--pink-soft));
-  box-shadow: 0 14px 42px color-mix(in srgb, var(--peach), transparent 68%);
-}
-
 .winner-name {
   color: var(--lavender-strong);
 }

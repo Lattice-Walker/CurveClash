@@ -56,6 +56,8 @@ Competitive bots each pick a random surviving opponent, human or bot, and plan a
 
 Peaceful bots never fire at all. The human is the only player who shoots. Peaceful bots still occupy the arena, still block and absorb curves, and remain fully eliminable targets worth their normal score, so a peaceful match still requires the human to eliminate opponents rather than simply waiting out the round limit. They are omitted from the equation reveal and the submission count.
 
+No survival bonus is paid in a peaceful match either: with nothing shooting back, the human's survival is not in question, and the score is the kills alone.
+
 A peaceful match also drops the whole right-hand sidebar, along with its **Hide panel** toggle: with a single shooter there is no ranking to follow and no firing order to read. The one figure still worth watching, the player's own live points, moves into the top bar between the timer and the pause button.
 
 ## Buried power-ups
@@ -75,13 +77,13 @@ A kill's base value is the straight-line distance from shooter to target plus th
 
 For a multi-kill, base values are sorted from smallest to largest and receive increasing multipliers. Three values `x < y < z` therefore award `x × 1 + y × 2 + z × 3`.
 
-Whoever is still standing when the match ends, whether player or bot, collects a survival bonus of 1000 × √R, where `R` is the number of rounds the match lasted. It is paid once, only when exactly one player is left, so a round that ends with everyone eliminated pays nobody.
+Whoever is still standing when the match ends, whether player or bot, collects a survival bonus of 1000 × √R, where `R` is the number of rounds the match lasted. It is paid once, only when exactly one player is left, so a round that ends with everyone eliminated pays nobody. **It is not paid at all in peaceful mode**, where nothing shoots back: being the last one standing there is not survival, only the passage of time.
 
 | Rounds | 1 | 2 | 3 | 4 | 6 | 8 | 12 | 16 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Bonus | 1000 | 1414 | 1732 | 2000 | 2449 | 2828 | 3464 | 4000 |
 
-The square root, rather than a linear payout, keeps the bonus comparable in magnitude to a handful of kills regardless of how long the match runs. A linear bonus would reach 10,000 points by round ten, reducing the incentive to shoot. The square-root formula also reduces the benefit of stalling: each additional round is worth `500 / √R`, so from the second round onward, waiting yields less value than landing a kill. This effect is most relevant against peaceful bots, where the match only ends when the human shoots.
+The square root, rather than a linear payout, keeps the bonus comparable in magnitude to a handful of kills regardless of how long the match runs. A linear bonus would reach 10,000 points by round ten, reducing the incentive to shoot. The square-root formula also reduces the benefit of stalling: each additional round is worth `500 / √R`, so from the second round onward, waiting yields less value than landing a kill.
 
 The live roster is ordered by score, and the final winner is the top-ranked player, even if that player was eliminated, since the bonus is large but not unbeatable. Ties are resolved by kills, survival, then the fixed turn order.
 

@@ -94,7 +94,6 @@ class CurveClashGame {
       latexPreview: $("#latex-preview"),
       equationHelp: $("#equation-help"),
       equationError: $("#equation-error"),
-      inputModeLabel: $("#input-mode-label"),
       examplesToggle: $("#examples-toggle"),
       helpToggle: $("#help-toggle"),
       examplesPanel: $("#examples-panel"),
@@ -103,8 +102,6 @@ class CurveClashGame {
       revealCountdown: $("#reveal-countdown"),
       endOverlay: $("#end-overlay"),
       endCard: $("#end-overlay .end-card"),
-      endEmblem: $("#end-emblem"),
-      endKicker: $("#end-kicker"),
       endTitle: $("#end-title"),
       endMessage: $("#end-message"),
       endRanking: $("#end-ranking"),
@@ -1098,7 +1095,6 @@ class CurveClashGame {
     this.dom.validateButton.classList.remove("is-validated", "validated");
     this.dom.validateButton.textContent = canInput ? "Validate shot" : "Spectating";
     this.dom.equationError.textContent = "";
-    this.dom.inputModeLabel.textContent = state?.config.inputMode === "plain" ? "Plain text mode" : "Live visualizer";
     const notation = `Type only the expression after f(x) =, in units of ${LOCAL_UNIT_PIXELS} px. It must pass through y = 0 at x = 0; ln(), exp() and absolute values like |x| are available, min() and max() are not. Equations pasted from Desmos work as they are.`;
     this.dom.equationHelp.textContent = state?.config.inputMode === "plain"
       ? `${notation} Interpretation appears after validation.`
@@ -1798,6 +1794,10 @@ class CurveClashGame {
    */
   awardSurvivalBonus() {
     const state = this.state;
+    // Peaceful bots never shoot back, so being the last one standing is not an
+    // achievement there — the human is in no danger and would collect the
+    // bonus simply for taking long enough. No bonus is paid in that mode.
+    if (state?.config.peaceful) return;
     const survivor = findLastSurvivor(state?.players ?? []);
     if (!survivor || survivor.survivalBonus) return;
     const rounds = Math.max(1, state.turn);
@@ -1846,8 +1846,6 @@ class CurveClashGame {
     );
 
     this.dom.endCard.classList.toggle("defeat", !victory);
-    this.dom.endEmblem.textContent = victory ? "✦" : "∿";
-    this.dom.endKicker.textContent = "Final ranking";
     this.dom.endTitle.textContent = victory
       ? "Ranking victory!"
       : `${formatOrdinal(humanStanding?.rank ?? ranking.length)} place`;
