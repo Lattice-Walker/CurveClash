@@ -54,7 +54,9 @@ The **Pause** button in the top bar (or the `P` key, when the equation field doe
 
 Competitive bots each pick a random surviving opponent, human or bot, and plan a terrain-aware route to it at the configured accuracy.
 
-Peaceful bots never fire at all. The human is the only player who shoots. Peaceful bots still occupy the arena, still block and absorb curves, and remain fully eliminable targets worth their normal score, so a peaceful match still requires the human to eliminate opponents rather than simply waiting out the round limit. They are listed in the turn order as "holds fire" and are omitted from the equation reveal and the submission count.
+Peaceful bots never fire at all. The human is the only player who shoots. Peaceful bots still occupy the arena, still block and absorb curves, and remain fully eliminable targets worth their normal score, so a peaceful match still requires the human to eliminate opponents rather than simply waiting out the round limit. They are omitted from the equation reveal and the submission count.
+
+A peaceful match also drops the whole right-hand sidebar, along with its **Hide panel** toggle: with a single shooter there is no ranking to follow and no firing order to read. The one figure still worth watching, the player's own live points, moves into the top bar between the timer and the pause button.
 
 ## Buried power-ups
 

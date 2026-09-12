@@ -108,6 +108,8 @@ class CurveClashGame {
       endRanking: $("#end-ranking"),
       endStats: $("#end-stats"),
       lastEquationExample: $("#last-equation"),
+      topbarScore: $("#topbar-score"),
+      topbarScoreValue: $("#topbar-score-value"),
       pauseButton: $("#pause-btn"),
       pausedBanner: $("#paused-banner"),
       replayButton: $("#view-replay-btn"),
@@ -357,17 +359,7 @@ class CurveClashGame {
   bindSidebarToggle() {
     const button = this.dom.sidebarToggle;
     if (!button) return;
-    let saved = null;
-    try {
-      saved = localStorage.getItem("curve-clash-sidebar-hidden");
-    } catch {
-      // Storage can be unavailable in privacy-focused browser contexts.
-    }
-    // A phone starts with the panel away, because there the sidebar's column
-    // is the difference between a readable arena and a postage stamp. Anywhere
-    // with room to spare starts with it open, and an explicit choice — the
-    // only thing that ever gets stored — outranks both.
-    this.setSidebarHidden(saved === null ? PHONE_LAYOUT.matches : saved === "true");
+    this.restoreSidebarPreference();
     button.addEventListener("click", () => {
       const next = !document.body.classList.contains("sidebar-hidden");
       this.setSidebarHidden(next);
@@ -381,6 +373,42 @@ class CurveClashGame {
 
   /** The canvas needs no explicit refit here: a ResizeObserver already watches
    * its wrapper, and the wrapper's width is exactly what this changes. */
+  /**
+   * A phone starts with the panel away, because there the sidebar's column is
+   * the difference between a readable arena and a postage stamp. Anywhere with
+   * room to spare starts with it open, and an explicit choice — the only thing
+   * that ever gets stored — outranks both.
+   */
+  restoreSidebarPreference() {
+    let saved = null;
+    try {
+      saved = localStorage.getItem("curve-clash-sidebar-hidden");
+    } catch {
+      // Storage can be unavailable in privacy-focused browser contexts.
+    }
+    this.setSidebarHidden(saved === null ? PHONE_LAYOUT.matches : saved === "true");
+  }
+
+  /**
+   * Peaceful mode has no ranking to run and no firing order to follow — the
+   * bots never shoot — so the whole sidebar goes, along with the toggle that
+   * would show an empty panel. The one number still worth having, the
+   * player's own points, moves into the top bar instead.
+   */
+  applyMatchLayout(config) {
+    const peaceful = Boolean(config?.peaceful);
+    this.dom.sidebarToggle.classList.toggle("is-hidden", peaceful);
+    this.dom.topbarScore.classList.toggle("is-hidden", !peaceful);
+    if (peaceful) this.setSidebarHidden(true);
+    else this.restoreSidebarPreference();
+    this.updateTopbarScore();
+  }
+
+  updateTopbarScore() {
+    const human = this.state?.players.find((player) => player.isHuman);
+    this.dom.topbarScoreValue.textContent = formatPoints(human?.score ?? 0);
+  }
+
   setSidebarHidden(hidden) {
     document.body.classList.toggle("sidebar-hidden", hidden);
     this.dom.sidebarToggle.setAttribute("aria-expanded", String(!hidden));
@@ -657,6 +685,7 @@ class CurveClashGame {
     this.dom.endOverlay.classList.add("is-hidden");
     this.dom.stopReplayButton.classList.add("is-hidden");
     this.dom.equationDock.style.setProperty("--player-color", players[0].color);
+    this.applyMatchLayout(config);
     this.updateAllInterface();
     requestAnimationFrame(() => this.fitCanvas());
     this.beginInputPhase(version);
@@ -2090,6 +2119,7 @@ class CurveClashGame {
 
   updateAllInterface() {
     if (!this.state) return;
+    this.updateTopbarScore();
     this.updatePhaseHeader();
     this.updateRoster();
     this.updateTurnOrder();

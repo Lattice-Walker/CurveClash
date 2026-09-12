@@ -2960,7 +2960,8 @@ select {
 
 .status-pill,
 .turn-counter,
-.timer-display {
+.timer-display,
+.topbar-score {
   display: inline-flex;
   min-height: 36px;
   align-items: center;
@@ -2986,7 +2987,9 @@ select {
   animation: status-pulse 1.8s ease-in-out infinite;
 }
 
-.turn-counter strong {
+/* The score reads exactly like the turn counter beside it. */
+.turn-counter strong,
+.topbar-score strong {
   color: var(--lavender-strong);
   font-family: var(--font-display);
   font-size: 0.8rem;
