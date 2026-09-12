@@ -3227,6 +3227,17 @@ select {
     transform 150ms var(--ease-out);
 }
 
+/* The recall chip carries a whole equation rather than a two-word name, so it
+   is allowed to be the widest chip in the row and then trails off. */
+.examples-panel .last-equation {
+  max-width: min(100%, 280px);
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--lavender-strong), transparent 60%);
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .examples-panel button:hover {
   color: var(--lavender-strong);
   border-color: color-mix(in srgb, var(--lavender-strong), transparent 60%);

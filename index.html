@@ -248,6 +248,10 @@
                 </div>
               </div>
               <div id="examples-panel" class="examples-panel is-hidden">
+                <!-- Filled in and unhidden at the start of the second turn of a
+                     match; the equations themselves live on the game state, so
+                     a new match starts with no history again. -->
+                <button type="button" id="last-equation" class="last-equation is-hidden" data-equation="">Last used</button>
                 <button type="button" data-equation="0.5 * x">Straight line</button>
                 <button type="button" data-equation="0.1 * x^2 - 2">Parabola</button>
                 <button type="button" data-equation="2 * sin(x / 1.5)">Sine wave</button>

@@ -107,6 +107,7 @@ class CurveClashGame {
       endMessage: $("#end-message"),
       endRanking: $("#end-ranking"),
       endStats: $("#end-stats"),
+      lastEquationExample: $("#last-equation"),
       pauseButton: $("#pause-btn"),
       pausedBanner: $("#paused-banner"),
       replayButton: $("#view-replay-btn"),
@@ -120,6 +121,12 @@ class CurveClashGame {
     this.timerInterval = null;
     this.previewTimer = null;
     this.previewVersion = 0;
+    // Position in the equation history while the arrow keys are walking it.
+    // null means the field is showing what the player typed rather than a
+    // recalled curve, and `historyDraft` is that typed text, kept so walking
+    // back down to the bottom of the history returns it untouched.
+    this.historyIndex = null;
+    this.historyDraft = "";
     // Pause state. `pausedElapsed` is the total time already spent paused and
     // `pausedSince` marks an ongoing pause, so clock() simply stops advancing
     // while the game is held — see clock() for why everything reads from it.
@@ -250,7 +257,20 @@ class CurveClashGame {
       if (this.state?.config) this.startGame({ ...this.state.config });
     });
 
-    this.dom.equationInput.addEventListener("input", () => this.handleEquationInput());
+    this.dom.equationInput.addEventListener("input", () => {
+      this.resetEquationHistoryCursor();
+      this.handleEquationInput();
+    });
+
+    // Up and Down recall this match's earlier curves. In a single-line field
+    // those keys only jump the caret to either end, so the history is worth
+    // more than what is being overridden -- and when there is no history yet,
+    // nothing is overridden at all.
+    this.dom.equationInput.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      if (this.dom.equationInput.disabled || this.paused) return;
+      if (this.stepEquationHistory(event.key === "ArrowUp" ? -1 : 1)) event.preventDefault();
+    });
     this.dom.equationForm.addEventListener("submit", (event) => this.validateHumanEquation(event));
 
     this.dom.examplesToggle.addEventListener("click", () => {
@@ -606,6 +626,10 @@ class CurveClashGame {
       particles: [],
       nextShotId: 1,
       activeShotRecord: null,
+      // The equations this player has fired, oldest first. It lives on the
+      // match state, so a new game starts from an empty history rather than
+      // offering back curves from a match that is over.
+      equationHistory: [],
       stats: {
         shots: 0,
         humanShots: 0,
@@ -1006,7 +1030,75 @@ class CurveClashGame {
       : notation;
     this.dom.latexPreview.classList.toggle("plain-mode", state?.config.inputMode === "plain");
     this.setLatexPlaceholder(state?.config.inputMode === "plain" ? "Preview hidden until validation" : "Your equation will appear here");
+    this.resetEquationHistoryCursor();
+    this.updateLastEquationExample();
     this.updatePauseInterface();
+  }
+
+  /**
+   * Remember a curve the player actually fired, so later turns can offer it
+   * back. Only real submissions are recorded: a timed-out turn fires a null
+   * shot, and there is nothing to recall from it.
+   */
+  recordEquationInHistory(source) {
+    const history = this.state?.equationHistory;
+    const equation = String(source ?? "").trim();
+    if (!history || !equation) return;
+    history.push(equation);
+    this.updateLastEquationExample();
+  }
+
+  /** Most recent first, which is the order the arrow keys walk. */
+  equationHistory() {
+    return [...(this.state?.equationHistory ?? [])].reverse();
+  }
+
+  /**
+   * The "Last used" idea. It is absent on the first turn of a match, because
+   * there is nothing to have used yet, and it names the curve it will insert
+   * rather than making the player click to find out.
+   */
+  updateLastEquationExample() {
+    const [latest] = this.equationHistory();
+    const button = this.dom.lastEquationExample;
+    button.classList.toggle("is-hidden", !latest);
+    if (!latest) return;
+    button.dataset.equation = latest;
+    button.textContent = `Last used: ${latest}`;
+    button.title = `Fill the field with the curve you fired last turn: ${latest}`;
+  }
+
+  /**
+   * Walk the player's own equation history in the input field, shell style:
+   * one press of Up recalls last turn's curve, a second press the one before
+   * it, and Down comes back to whatever was being typed.
+   */
+  stepEquationHistory(direction) {
+    const history = this.equationHistory();
+    if (!history.length) return false;
+
+    if (direction < 0) {
+      if (this.historyIndex === null) this.historyDraft = this.dom.equationInput.value;
+      this.historyIndex = Math.min((this.historyIndex ?? -1) + 1, history.length - 1);
+    } else {
+      if (this.historyIndex === null) return false;
+      this.historyIndex = this.historyIndex - 1;
+      if (this.historyIndex < 0) this.historyIndex = null;
+    }
+
+    const recalled = this.historyIndex === null ? this.historyDraft : history[this.historyIndex];
+    this.dom.equationInput.value = recalled;
+    // Assigning value fires no input event, so the preview is asked for
+    // directly -- and the caret goes to the end, ready to edit the recall.
+    this.dom.equationInput.setSelectionRange(recalled.length, recalled.length);
+    this.handleEquationInput(true);
+    return true;
+  }
+
+  /** Typing by hand abandons the walk, so the next Up starts from the top. */
+  resetEquationHistoryCursor() {
+    this.historyIndex = null;
+    this.historyDraft = "";
   }
 
   /** Curves go back to being secret at the start of an input phase, so the
@@ -1080,6 +1172,7 @@ class CurveClashGame {
       human.equation = source;
       human.parsed = parsed;
       human.validated = true;
+      this.recordEquationInHistory(source);
       state.preview = state.config.inputMode === "live" ? { ...plan, shooterId: human.id, color: human.color } : null;
       this.dom.equationInput.classList.remove("is-invalid");
       this.dom.equationInput.classList.add("is-valid");

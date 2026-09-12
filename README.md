@@ -12,12 +12,11 @@ CORRECTED VERSION
 
 ### Notation
 
-An equation copied out of Desmos can be pasted in as it is. The LaTeX it
-produces — `\left(…\right)` brackets, `\sin`, `\frac{a}{b}`, `\sqrt{…}`,
-`\sqrt[3]{…}`, `^{2}` exponents, `\operatorname{abs}` and `\cdot` — is rewritten
-to the infix form math.js parses, and a leading `y =` or `f(x) =` is accepted
-as the same function. Unicode superscripts (`x²`), `π`, `√` and `×` work too,
-and absolute value can be written either as bars, `|x - 3|`, or as `abs(x - 3)`.
+An equation copied out of Desmos can be pasted in as it is. The LaTeX it produces — `\left(…\right)` brackets, `\sin`, `\frac{a}{b}`, `\sqrt{…}`, `\sqrt[3]{…}`, `^{2}` exponents, `\operatorname{abs}` and `\cdot` — is rewritten to the infix form math.js parses, and a leading `y =` or `f(x) =` is accepted as the same function. Unicode superscripts (`x²`), `π`, `√` and `×` work too, and absolute value can be written either as bars, `|x - 3|`, or as `abs(x - 3)`.
+
+### Recall
+
+Curves you have already fired come back two ways, both limited to the match in progress: **Equation ideas** grows a `Last used: …` chip naming last turn's curve, and the Up and Down arrow keys walk your own history inside the input field — one press of Up for last turn, two for the turn before that, Down to come back, and Down past the newest to get back whatever you had started typing. Neither exists on the first turn, because nothing has been fired yet, and starting a new match throws the history away rather than offering curves from a game that is over.
 
 `ln()` is accepted as an exact synonym for the natural logarithm, which math.js itself spells `log()`; `log10()`, `log2()`, `exp()`, and a constant base such as `2^x` are available too. Because every shot must pass through `y = 0` at `x = 0`, a bare exponential is refused: `exp(x)` is never zero, so subtract its value at the origin and fire `exp(x / 3) - 1` instead.
 
@@ -45,21 +44,11 @@ Only `x` may vary, and the function must equal `y = 0` at `x = 0`, the firing pl
 
 The human player always fires first, before any bot. Only the bot slots are shuffled, and that order stays fixed for the whole match. Every human curve resolves against the terrain exactly as it stood at the start of the turn, and the same order breaks final ranking ties after kills and survival.
 
-The **Turn order & curves** list shows only the players who still have a turn.
-Someone knocked out while the turn is resolving stays on the list, marked
-`out`, for the rest of that turn — exactly as long as their icon stays on the
-map — and the row is gone from the next turn on.
+The **Turn order & curves** list shows only the players who still have a turn. Someone knocked out while the turn is resolving stays on the list, marked `out`, for the rest of that turn — exactly as long as their icon stays on the map — and the row is gone from the next turn on.
 
 ## Pause
 
-The **Pause** button in the top bar (or the `P` key, when the equation field
-does not have focus) freezes the match at any moment, including mid-trace and
-during the 3-2-1 reveal countdown. It works because every animation, wait and
-countdown in the game reads `CurveClashGame.clock()`, a clock that stops while
-paused, rather than `performance.now()`: a curve holds its exact progress, the
-input timer holds its seconds, and nothing jumps forward on resume. A shot
-cannot be committed into a frozen game, so the validate button reads `Paused`
-until the match is resumed.
+The **Pause** button in the top bar (or the `P` key, when the equation field does not have focus) freezes the match at any moment, including mid-trace and during the 3-2-1 reveal countdown. It works because every animation, wait and countdown in the game reads `CurveClashGame.clock()`, a clock that stops while paused, rather than `performance.now()`: a curve holds its exact progress, the input timer holds its seconds, and nothing jumps forward on resume. A shot cannot be committed into a frozen game, so the validate button reads `Paused` until the match is resumed.
 
 ## Bot behavior
 
