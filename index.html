@@ -192,7 +192,16 @@
 
       <section id="game-screen" class="screen game-screen is-hidden" aria-label="Curve Clash arena">
         <header class="topbar">
-          <div class="mini-brand"><span class="mini-mark">∿</span><strong>Curve Clash</strong></div>
+          <!-- The same mark as the configuration screen's, built from the same
+               classes so the two can never drift apart. -->
+          <div class="mini-brand">
+            <span class="mini-mark" aria-hidden="true">
+              <span class="orbit orbit-one"></span>
+              <span class="orbit orbit-two"></span>
+              <span class="brand-dot"></span>
+            </span>
+            <strong>Curve Clash</strong>
+          </div>
           <div class="round-status">
             <span class="status-pill"><i></i><span id="phase-label">Input phase</span></span>
             <span class="turn-counter">Turn <strong id="turn-number">1</strong></span>

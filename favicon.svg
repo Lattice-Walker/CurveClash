@@ -1,25 +1,21 @@
 <!--
   The brand mark from the configuration screen, drawn at 64x64.
 
-  Every measurement here is the CSS one scaled by 64/40, because the mark on
-  the page is a 40px box: the tile's 13px radius, the two orbits at 55%x82%
-  and 80%x43% turned 48deg and -22deg, and the 13px dot with its 3px ring.
-  Borders are inside the box on the page (border-box sizing), so each ellipse
-  is drawn half a stroke inside its outer size.
+  The proportions are the measured ones: a 90px tile with a 28px radius, two
+  orbits sized 55%x82% and 80%x43% of its padding box and turned 48deg and
+  -22deg, and a 13px dot inside a 3px ring. Everything is scaled by 64/90.
+  The orbit strokes are carried at the weight the 34px in-game tile uses
+  rather than the large mark's 2px, so they survive a 16px browser tab.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0.7" y2="1">
-      <stop stop-color="#fde9ef"/>
-      <stop offset="1" stop-color="#eeeafb"/>
-    </linearGradient>
-  </defs>
-  <rect x="0.8" y="0.8" width="62.4" height="62.4" rx="20.8"
-        fill="url(#tile)" stroke="#8a78ca" stroke-opacity="0.18" stroke-width="1.6"/>
-  <ellipse cx="32" cy="32" rx="16" ry="24.64" transform="rotate(48 32 32)"
-           fill="none" stroke="#8a78ca" stroke-opacity="0.82" stroke-width="3.2"/>
-  <ellipse cx="32" cy="32" rx="24" ry="12.16" transform="rotate(-22 32 32)"
-           fill="none" stroke="#d97999" stroke-opacity="0.82" stroke-width="3.2"/>
-  <circle cx="32" cy="32" r="8" fill="none" stroke="#fffdfb" stroke-opacity="0.88" stroke-width="4.8"/>
-  <circle cx="32" cy="32" r="5.6" fill="#55a887"/>
+  <rect x="0.36" y="0.36" width="63.29" height="63.29" rx="19.9"
+        fill="#f4f0ed" stroke="#8a78ca" stroke-opacity="0.18" stroke-width="0.71"/>
+  <rect x="1.07" y="1.07" width="61.87" height="61.87" rx="19.2"
+        fill="none" stroke="#4d4555" stroke-opacity="0.12" stroke-width="0.71"/>
+  <ellipse cx="32" cy="32" rx="16.5" ry="24.95" transform="rotate(48 32 32)"
+           fill="none" stroke="#8a78ca" stroke-opacity="0.82" stroke-width="1.88"/>
+  <ellipse cx="32" cy="32" rx="24.32" ry="12.74" transform="rotate(-22 32 32)"
+           fill="none" stroke="#d97999" stroke-opacity="0.82" stroke-width="1.88"/>
+  <circle cx="32" cy="32" r="3.56" fill="none" stroke="#fffdfb" stroke-opacity="0.88" stroke-width="2.13"/>
+  <circle cx="32" cy="32" r="2.49" fill="#55a887"/>
 </svg>

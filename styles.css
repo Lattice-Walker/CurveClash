@@ -2542,7 +2542,8 @@ select {
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
-.brand-mark .orbit {
+.brand-mark .orbit,
+.mini-mark .orbit {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -2551,20 +2552,23 @@ select {
   transform: translate(-50%, -50%) rotate(var(--orbit-rotation, 0deg));
 }
 
-.brand-mark .orbit-one {
+.brand-mark .orbit-one,
+.mini-mark .orbit-one {
   width: 55%;
   height: 82%;
   --orbit-rotation: 48deg;
 }
 
-.brand-mark .orbit-two {
+.brand-mark .orbit-two,
+.mini-mark .orbit-two {
   width: 80%;
   height: 43%;
   --orbit-rotation: -22deg;
   border-color: color-mix(in srgb, var(--pink-strong), transparent 18%);
 }
 
-.brand-mark .brand-dot {
+.brand-mark .brand-dot,
+.mini-mark .brand-dot {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -2931,16 +2935,28 @@ select {
 }
 
 .mini-mark {
-  display: grid;
+  position: relative;
+  display: block;
   width: 34px;
   height: 34px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--lavender), transparent 65%);
+  overflow: hidden;
   border-radius: 11px;
-  color: var(--lavender-strong);
-  background: var(--lavender-soft);
-  font-size: 1.1rem;
-  box-shadow: var(--shadow-xs);
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* A thirty-four pixel tile is roughly a third of the configuration screen's,
+   so the orbit strokes and the dot are scaled with it rather than left at the
+   large mark's weights, which would fill the tile. */
+.mini-mark .orbit {
+  border-width: 1px;
+}
+
+.mini-mark .brand-dot {
+  width: 6px;
+  height: 6px;
+  border-width: 1.5px;
+  box-shadow: none;
 }
 
 .round-status {
