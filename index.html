@@ -197,12 +197,16 @@
             <span class="status-pill"><i></i><span id="phase-label">Input phase</span></span>
             <span class="turn-counter">Turn <strong id="turn-number">1</strong></span>
             <span id="timer-display" class="timer-display" aria-live="polite">03:00</span>
-          </div>
-          <!-- Peaceful mode has no ranking panel to read a score from, so the
-               player's own points sit in the bar between the timer and the
-               match controls. -->
-          <div id="topbar-score" class="topbar-score is-hidden" title="Points you have earned this match" aria-live="polite">
-            Points <strong id="topbar-score-value">0</strong>
+            <!-- Peaceful mode has no ranking panel to read a score from, so the
+                 player's own points sit in the bar between the timer and the
+                 match controls. It is positioned out of this group's flow on a
+                 bar with room for it, and falls back into the group as an
+                 ordinary fourth pill when there is not. -->
+            <div id="topbar-score" class="topbar-score is-hidden" title="Points you have earned this match" aria-live="polite">
+              <span class="topbar-score-label">Points</span>
+              <strong id="topbar-score-value">0</strong>
+              <span class="topbar-score-unit" aria-hidden="true">pts</span>
+            </div>
           </div>
           <div class="topbar-actions">
             <!-- Pause is never gated on the phase: it is meant to work while a

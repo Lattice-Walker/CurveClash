@@ -896,11 +896,21 @@ select {
   /* Above the reveal and end overlays (z-index 100): the pause button has to
      stay clickable even while the 3-2-1 countdown is on screen. */
   z-index: 120;
-  display: flex;
+  /* Containing block for the absolutely positioned score readout. */
+  position: relative;
+  /* Three columns rather than a spread-out row, so the phase, turn and timer
+     group sits in the middle of the bar itself instead of in the middle of
+     whatever space the brand and the buttons happen to leave. Peaceful mode
+     drops one of those buttons, and the group must not drift when it does. */
+  display: grid;
   min-height: var(--header-height);
   flex: 0 0 var(--header-height);
   align-items: center;
-  justify-content: space-between;
+  /* The middle column takes its content's width but is allowed to shrink past
+     it -- minmax(0, auto) rather than a bare auto -- so that on a narrow bar
+     the pills compress the way they did when this was a flex row, instead of
+     spilling over the buttons. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   gap: 18px;
   padding: 11px clamp(14px, 2.5vw, 28px);
   border-bottom: 1px solid var(--line);
@@ -914,8 +924,14 @@ select {
 .topbar-actions {
   display: flex;
   align-items: center;
+  justify-self: end;
   gap: 7px;
   margin-right: 48px;
+}
+
+.topbar > .mini-brand {
+  justify-self: start;
+  min-width: 0;
 }
 
 .game-header .brand-mark,
@@ -2995,6 +3011,46 @@ select {
   font-size: 0.8rem;
 }
 
+/* Out of the bar's three-column flow, and placed by positionTopbarScore():
+   "halfway between the timer and the pause button" is a distance between two
+   elements that CSS cannot measure. The 50% is only the starting point. */
+.topbar-score {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.topbar-score-unit {
+  display: none;
+}
+
+/* Below this width the bar runs out of room for the arrangement above: the gap
+   between the timer and the pause button is narrower than the readout itself,
+   and centring the status group in the whole bar would push it into the
+   buttons. So the bar goes back to a spread-out row, where the group sits in
+   the space the brand and the buttons leave, and the score becomes an ordinary
+   fourth pill in it -- shortened to "1,234.5 pts", since the bar is tight. */
+@media (max-width: 920px) {
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .topbar-score {
+    position: static;
+    transform: none;
+  }
+
+  .topbar-score-label {
+    display: none;
+  }
+
+  .topbar-score-unit {
+    display: inline;
+  }
+}
+
 .timer-display {
   min-width: 70px;
   color: var(--peach-strong);
@@ -3922,9 +3978,16 @@ body.sidebar-hidden .game-layout {
     gap: 4px;
   }
 
+  /* On a phone bar even the unit has to go; the readout's tooltip still says
+     what the number is. */
+  .topbar-score-unit {
+    display: none;
+  }
+
   .status-pill,
   .turn-counter,
-  .timer-display {
+  .timer-display,
+  .topbar-score {
     min-height: 32px;
     padding: 4px 7px;
     border-radius: 10px;

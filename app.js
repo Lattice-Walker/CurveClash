@@ -54,6 +54,8 @@ const SCORE_FORMATTER = new Intl.NumberFormat("en-US", { maximumFractionDigits: 
 // blocked by the rotate overlay, so this is a phone held sideways — the same
 // query the compact game layout is written against in styles.css.
 const PHONE_LAYOUT = window.matchMedia("(orientation: landscape) and (max-height: 500px)");
+/** Space the top-bar score keeps from the timer and the pause button. */
+const TOPBAR_SCORE_CLEARANCE = 10;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -149,6 +151,10 @@ class CurveClashGame {
     this.restoreTheme();
     this.restoreConfiguration();
     this.syncConfigurationControls();
+    window.addEventListener("resize", () => this.positionTopbarScore());
+    // Web fonts land after the first paint and change how wide the timer and
+    // the buttons are, which moves the gap the score is measured into.
+    document.fonts?.ready?.then(() => this.positionTopbarScore());
     this.resizeObserver = new ResizeObserver(() => this.fitCanvas());
     this.resizeObserver.observe(this.dom.canvasWrap);
     requestAnimationFrame(() => this.renderLoop());
@@ -217,6 +223,7 @@ class CurveClashGame {
     this.dom.pauseButton.textContent = this.paused ? "Resume" : "Pause";
     this.dom.pauseButton.classList.toggle("is-paused", this.paused);
     this.dom.pausedBanner.classList.toggle("is-hidden", !this.paused);
+    this.positionTopbarScore();
     this.dom.gameScreen.classList.toggle("is-paused", this.paused);
     // The shot-input controls stay live so nothing looks broken, but a shot
     // cannot be committed into a frozen game, so the button says so.
@@ -402,11 +409,50 @@ class CurveClashGame {
     if (peaceful) this.setSidebarHidden(true);
     else this.restoreSidebarPreference();
     this.updateTopbarScore();
+    // The buttons either side of the gap have only just changed; measure
+    // again once the browser has laid the new bar out.
+    requestAnimationFrame(() => this.positionTopbarScore());
   }
 
   updateTopbarScore() {
     const human = this.state?.players.find((player) => player.isHuman);
     this.dom.topbarScoreValue.textContent = formatPoints(human?.score ?? 0);
+    this.positionTopbarScore();
+  }
+
+  /**
+   * Put the score halfway between the timer and the pause button.
+   *
+   * The readout is positioned rather than laid out in the bar's flex row,
+   * because a fourth item in that row pushes the phase/turn/timer group off
+   * centre. Out of the flow, that group keeps the place it has always had,
+   * and the gap it has to sit in the middle of is measured here: the two
+   * edges belong to different elements, and both move — the turn counter
+   * grows a digit, the pause button's label becomes "Resume".
+   */
+  positionTopbarScore() {
+    const score = this.dom.topbarScore;
+    if (score.classList.contains("is-hidden")) return;
+    // On a narrow bar the stylesheet puts the readout back in the flow of the
+    // status group, and then there is no gap for it to be measured into.
+    if (getComputedStyle(score).position !== "absolute") {
+      score.style.removeProperty("left");
+      return;
+    }
+    const bar = score.offsetParent;
+    if (!bar) return;
+    const barBox = bar.getBoundingClientRect();
+    const timer = this.dom.timer.getBoundingClientRect();
+    const pause = this.dom.pauseButton.getBoundingClientRect();
+    const half = score.offsetWidth / 2;
+    const middle = (timer.right + pause.left) / 2 - barBox.left;
+    // On a narrow bar the gap can be smaller than the readout; then it is
+    // simply centred in that gap and the clamp is skipped rather than
+    // pinning it against one of its neighbours.
+    const lowest = timer.right - barBox.left + TOPBAR_SCORE_CLEARANCE + half;
+    const highest = pause.left - barBox.left - TOPBAR_SCORE_CLEARANCE - half;
+    const left = lowest > highest ? middle : clamp(middle, lowest, highest);
+    score.style.left = `${Math.round(left)}px`;
   }
 
   setSidebarHidden(hidden) {
