@@ -7,8 +7,17 @@ CORRECTED VERSION
 ## Equation input
 
 - Type only the right-hand expression; the purple `f(x)` box and adjacent `=` are supplied by the interface.
-- Accepted: `x^2 - x`, `0.5 * x`, `2 * sin(x / 1.5)`, `2 * ln(x + 1)`, `exp(x / 3) - 1`
-- Rejected: functions that are not 0 at `x = 0` such as `x^2 + 1` or `x^2 - 1`, `min()`, `max()` or `abs()`, expressions using `y`, and implicit equations such as `x^2 + y^2 = 1`
+- Accepted: `x^2 - x`, `0.5 * x`, `2 * sin(x / 1.5)`, `2 * ln(x + 1)`, `exp(x / 3) - 1`, `|x|`, `x²`
+- Rejected: functions that are not 0 at `x = 0` such as `x^2 + 1` or `x^2 - 1`, `min()` or `max()`, expressions using `y` on the right-hand side, and implicit equations such as `x^2 + y^2 = 1`
+
+### Notation
+
+An equation copied out of Desmos can be pasted in as it is. The LaTeX it
+produces — `\left(…\right)` brackets, `\sin`, `\frac{a}{b}`, `\sqrt{…}`,
+`\sqrt[3]{…}`, `^{2}` exponents, `\operatorname{abs}` and `\cdot` — is rewritten
+to the infix form math.js parses, and a leading `y =` or `f(x) =` is accepted
+as the same function. Unicode superscripts (`x²`), `π`, `√` and `×` work too,
+and absolute value can be written either as bars, `|x - 3|`, or as `abs(x - 3)`.
 
 `ln()` is accepted as an exact synonym for the natural logarithm, which math.js itself spells `log()`; `log10()`, `log2()`, `exp()`, and a constant base such as `2^x` are available too. Because every shot must pass through `y = 0` at `x = 0`, a bare exponential is refused: `exp(x)` is never zero, so subtract its value at the origin and fire `exp(x / 3) - 1` instead.
 
@@ -35,6 +44,22 @@ Only `x` may vary, and the function must equal `y = 0` at `x = 0`, the firing pl
 ## Turn order
 
 The human player always fires first, before any bot. Only the bot slots are shuffled, and that order stays fixed for the whole match. Every human curve resolves against the terrain exactly as it stood at the start of the turn, and the same order breaks final ranking ties after kills and survival.
+
+The **Turn order & curves** list shows only the players who still have a turn.
+Someone knocked out while the turn is resolving stays on the list, marked
+`out`, for the rest of that turn — exactly as long as their icon stays on the
+map — and the row is gone from the next turn on.
+
+## Pause
+
+The **Pause** button in the top bar (or the `P` key, when the equation field
+does not have focus) freezes the match at any moment, including mid-trace and
+during the 3-2-1 reveal countdown. It works because every animation, wait and
+countdown in the game reads `CurveClashGame.clock()`, a clock that stops while
+paused, rather than `performance.now()`: a curve holds its exact progress, the
+input timer holds its seconds, and nothing jumps forward on resume. A shot
+cannot be committed into a frozen game, so the validate button reads `Paused`
+until the match is resumed.
 
 ## Bot behavior
 

@@ -893,7 +893,9 @@ select {
 
 .game-header,
 .topbar {
-  z-index: 20;
+  /* Above the reveal and end overlays (z-index 100): the pause button has to
+     stay clickable even while the 3-2-1 countdown is on screen. */
+  z-index: 120;
   display: flex;
   min-height: var(--header-height);
   flex: 0 0 var(--header-height);
@@ -3035,6 +3037,39 @@ select {
   color: var(--ink);
   border-color: var(--line-strong);
   transform: translateY(-1px);
+}
+
+/* A paused match says so in two places: on the button that did it, and over
+   the arena that has stopped moving. */
+.pause-button.is-paused {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--lavender), var(--surface) 78%);
+}
+
+/* The arena itself steps back a little while it is frozen, so the pause is
+   visible from anywhere on the screen and not only from the badge. */
+#game-screen.is-paused .canvas-wrap canvas {
+  opacity: 0.86;
+}
+
+.paused-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  padding: 7px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface), transparent 8%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
 }
 
 /* Production game stage and canvas layers */

@@ -107,6 +107,8 @@ class CurveClashGame {
       endMessage: $("#end-message"),
       endRanking: $("#end-ranking"),
       endStats: $("#end-stats"),
+      pauseButton: $("#pause-btn"),
+      pausedBanner: $("#paused-banner"),
       replayButton: $("#view-replay-btn"),
       playAgainButton: $("#play-again-btn"),
       sameSettingsButton: $("#same-settings-btn")
@@ -118,7 +120,15 @@ class CurveClashGame {
     this.timerInterval = null;
     this.previewTimer = null;
     this.previewVersion = 0;
-    this.lastFrameTime = performance.now();
+    // Pause state. `pausedElapsed` is the total time already spent paused and
+    // `pausedSince` marks an ongoing pause, so clock() simply stops advancing
+    // while the game is held — see clock() for why everything reads from it.
+    // These are set before anything calls clock().
+    this.paused = false;
+    this.pausedSince = null;
+    this.pausedElapsed = 0;
+    this.pauseWaiters = new Set();
+    this.lastFrameTime = this.clock();
     this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // A beam's lit shape is computed once against terrain as it stood when
     // that curve fired, then reused every frame it is redrawn. Keying by the
@@ -132,11 +142,81 @@ class CurveClashGame {
     this.syncConfigurationControls();
     this.resizeObserver = new ResizeObserver(() => this.fitCanvas());
     this.resizeObserver.observe(this.dom.canvasWrap);
-    requestAnimationFrame((time) => this.renderLoop(time));
+    requestAnimationFrame(() => this.renderLoop());
 
     // A small, intentional test/debug surface. It is also handy for educators
     // who want to inspect the current equation and obstacle-grid revision.
     window.curveClash = this;
+  }
+
+  /**
+   * Milliseconds of *unpaused* time since the page loaded.
+   *
+   * Every animation, countdown and wait in the game reads this instead of
+   * performance.now(), which is what makes a pause work mid-trace: the clock
+   * simply stops, so a curve's progress, the particles, the reveal countdown
+   * and the input timer all freeze where they are and none of them jump
+   * forward on resume.
+   */
+  clock() {
+    return (this.pausedSince ?? performance.now()) - this.pausedElapsed;
+  }
+
+  /**
+   * Sleep for `milliseconds` of unpaused time. A sleep that is running when
+   * the game is paused parks itself until the resume, then serves out
+   * whatever was left of it.
+   */
+  wait(milliseconds) {
+    return new Promise((resolve) => {
+      const deadline = this.clock() + milliseconds;
+      const tick = () => {
+        if (this.paused) {
+          this.pauseWaiters.add(tick);
+          return;
+        }
+        const remaining = deadline - this.clock();
+        if (remaining <= 0) resolve();
+        else setTimeout(tick, remaining);
+      };
+      // Always through a timeout, never a bare microtask: the simulation
+      // relies on these yields to let the browser paint between actors.
+      setTimeout(tick, milliseconds);
+    });
+  }
+
+  setPaused(paused) {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    if (paused) {
+      this.pausedSince = performance.now();
+    } else {
+      this.pausedElapsed += performance.now() - this.pausedSince;
+      this.pausedSince = null;
+      const waiting = [...this.pauseWaiters];
+      this.pauseWaiters.clear();
+      for (const resume of waiting) resume();
+    }
+    this.updatePauseInterface();
+  }
+
+  togglePause() {
+    this.setPaused(!this.paused);
+  }
+
+  updatePauseInterface() {
+    this.dom.pauseButton.textContent = this.paused ? "Resume" : "Pause";
+    this.dom.pauseButton.classList.toggle("is-paused", this.paused);
+    this.dom.pausedBanner.classList.toggle("is-hidden", !this.paused);
+    this.dom.gameScreen.classList.toggle("is-paused", this.paused);
+    // The shot-input controls stay live so nothing looks broken, but a shot
+    // cannot be committed into a frozen game, so the button says so.
+    if (this.paused) {
+      this.dom.validateButton.textContent = "Paused";
+    } else if (this.state?.phase === "input") {
+      const human = this.state.players.find((player) => player.isHuman);
+      if (human?.alive && !human.validated) this.dom.validateButton.textContent = "Validate shot";
+    }
   }
 
   bindInterface() {
@@ -161,6 +241,7 @@ class CurveClashGame {
       this.setTheme(next);
     });
 
+    this.dom.pauseButton.addEventListener("click", () => this.togglePause());
     this.dom.newGameButton.addEventListener("click", () => this.showConfiguration());
     this.dom.stopReplayButton.addEventListener("click", () => this.stopReplay());
     this.dom.replayButton.addEventListener("click", () => this.playReplay());
@@ -195,6 +276,11 @@ class CurveClashGame {
     });
 
     document.addEventListener("keydown", (event) => {
+      const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+      if (!typing && (event.key === "p" || event.key === "P")) {
+        event.preventDefault();
+        this.togglePause();
+      }
       if (event.key === "Escape") {
         this.dom.examplesPanel.classList.add("is-hidden");
         this.dom.examplesToggle.setAttribute("aria-expanded", "false");
@@ -554,6 +640,9 @@ class CurveClashGame {
 
   cancelRuntime() {
     this.runtimeVersion += 1;
+    // Waits parked on a pause would otherwise never be served, and the new
+    // match would start behind a Resume nobody expected to need.
+    this.setPaused(false);
     clearInterval(this.timerInterval);
     clearTimeout(this.previewTimer);
     this.timerInterval = null;
@@ -612,12 +701,12 @@ class CurveClashGame {
       this.dom.equationInput.placeholder = "Spectating the remaining bot battle";
       this.dom.validateButton.textContent = "Spectating";
       this.dom.timer.textContent = "00:01";
-      await delay(this.reducedMotion ? 250 : 900);
+      await this.wait(this.reducedMotion ? 250 : 900);
       if (this.isCurrent(version) && state.phase === "input") this.closeInputPhase("bots-ready", version);
       return;
     }
 
-    state.inputDeadline = Date.now() + state.config.timer * 1000;
+    state.inputDeadline = this.clock() + state.config.timer * 1000;
     state.remainingSeconds = state.config.timer;
     this.updateTimer();
     clearInterval(this.timerInterval);
@@ -626,7 +715,7 @@ class CurveClashGame {
         clearInterval(this.timerInterval);
         return;
       }
-      state.remainingSeconds = Math.max(0, Math.ceil((state.inputDeadline - Date.now()) / 1000));
+      state.remainingSeconds = Math.max(0, Math.ceil((state.inputDeadline - this.clock()) / 1000));
       this.updateTimer();
       if (state.remainingSeconds <= 0) this.closeInputPhase("timeout", version);
     }, 250);
@@ -659,7 +748,7 @@ class CurveClashGame {
     }
 
     for (const bot of bots) {
-      await delay(0);
+      await this.wait(0);
       if (!this.isCurrent(version) || this.state !== state || state.phase !== "input") return;
       const target = this.chooseRandomOpponent(bot, living);
       const difficulty = state.config.difficulty;
@@ -911,11 +1000,13 @@ class CurveClashGame {
     this.dom.validateButton.textContent = canInput ? "Validate shot" : "Spectating";
     this.dom.equationError.textContent = "";
     this.dom.inputModeLabel.textContent = state?.config.inputMode === "plain" ? "Plain text mode" : "Live visualizer";
+    const notation = `Type only the expression after f(x) =, in units of ${LOCAL_UNIT_PIXELS} px. It must pass through y = 0 at x = 0; ln(), exp() and absolute values like |x| are available, min() and max() are not. Equations pasted from Desmos work as they are.`;
     this.dom.equationHelp.textContent = state?.config.inputMode === "plain"
-      ? `Type only the expression after f(x) =, in units of ${LOCAL_UNIT_PIXELS} px. It must pass through y = 0 at x = 0; ln() and exp() are available, min(), max() and abs() are not. Interpretation appears after validation.`
-      : `Type only the expression after f(x) =, in units of ${LOCAL_UNIT_PIXELS} px. It must pass through y = 0 at x = 0; ln() and exp() are available, min(), max() and abs() are not.`;
+      ? `${notation} Interpretation appears after validation.`
+      : notation;
     this.dom.latexPreview.classList.toggle("plain-mode", state?.config.inputMode === "plain");
     this.setLatexPlaceholder(state?.config.inputMode === "plain" ? "Preview hidden until validation" : "Your equation will appear here");
+    this.updatePauseInterface();
   }
 
   /** Curves go back to being secret at the start of an input phase, so the
@@ -971,6 +1062,9 @@ class CurveClashGame {
     const state = this.state;
     const human = state?.players.find((player) => player.isHuman);
     if (!state || state.phase !== "input" || state.closingInput || !human?.alive || human.validated) return;
+    // Committing a shot would start the turn resolving inside a stopped
+    // clock. The button already reads "Paused", so the press just does nothing.
+    if (this.paused) return;
     const source = this.dom.equationInput.value.trim();
     if (!source) {
       this.dom.equationInput.classList.add("is-invalid");
@@ -1069,7 +1163,7 @@ class CurveClashGame {
     for (let count = 3; count >= 1; count -= 1) {
       if (!this.isCurrent(version)) return;
       this.dom.revealCountdown.textContent = String(count);
-      await delay(this.reducedMotion ? 300 : 850);
+      await this.wait(this.reducedMotion ? 300 : 850);
     }
     if (!this.isCurrent(version)) return;
     this.dom.revealModal.classList.add("is-hidden");
@@ -1139,7 +1233,7 @@ class CurveClashGame {
     this.dom.equationInput.disabled = true;
     this.dom.validateButton.textContent = "Tracing…";
     this.updateAllInterface();
-    await delay(this.reducedMotion ? 180 : 500);
+    await this.wait(this.reducedMotion ? 180 : 500);
 
     for (const playerId of state.turnOrder) {
       if (!this.isCurrent(version)) return;
@@ -1152,7 +1246,7 @@ class CurveClashGame {
         if (shooter.eliminatedThisTurn) {
           state.currentShooterId = shooter.id;
           this.updateAllInterface();
-          await delay(this.reducedMotion ? 220 : 800);
+          await this.wait(this.reducedMotion ? 220 : 800);
         }
         continue;
       }
@@ -1160,7 +1254,7 @@ class CurveClashGame {
       state.currentShooterId = shooter.id;
       this.updateAllInterface();
       if (!shooter.parsed) {
-        await delay(this.reducedMotion ? 220 : 850);
+        await this.wait(this.reducedMotion ? 220 : 850);
         continue;
       }
 
@@ -1176,12 +1270,12 @@ class CurveClashGame {
         );
       } catch (error) {
         console.error("Could not trace submitted equation", error);
-        await delay(this.reducedMotion ? 220 : 850);
+        await this.wait(this.reducedMotion ? 220 : 850);
         continue;
       }
 
       if (!plan.paths.length) {
-        await delay(this.reducedMotion ? 220 : 850);
+        await this.wait(this.reducedMotion ? 220 : 850);
         continue;
       }
 
@@ -1201,7 +1295,7 @@ class CurveClashGame {
       // Let the completed shot visibly meet the intact wall before the impact
       // opens a crater. Without this paint window, both states can collapse
       // into one frame and make the curve look as though it simply vanished.
-      await delay(this.reducedMotion ? 90 : 180);
+      await this.wait(this.reducedMotion ? 90 : 180);
       if (!this.isCurrent(version)) return;
 
       state.traces.push({
@@ -1231,7 +1325,7 @@ class CurveClashGame {
       this.commitShotRecord(shotRecord);
 
       this.updateAllInterface();
-      await delay(this.reducedMotion ? 320 : 1000);
+      await this.wait(this.reducedMotion ? 320 : 1000);
     }
 
     if (!this.isCurrent(version)) return;
@@ -1255,8 +1349,9 @@ class CurveClashGame {
       beamEnvelope: plan.beamEnvelope ?? null
     };
     return new Promise((resolve) => {
-      const started = performance.now();
-      const step = (now) => {
+      const started = this.clock();
+      const step = () => {
+        const now = this.clock();
         if (!this.isCurrent(version) || this.state !== state) {
           resolve(false);
           return;
@@ -1506,7 +1601,7 @@ class CurveClashGame {
     state.phase = "end-turn";
     state.currentShooterId = null;
     this.updateAllInterface();
-    await delay(this.reducedMotion ? 250 : 900);
+    await this.wait(this.reducedMotion ? 250 : 900);
     if (!this.isCurrent(version)) return;
 
     for (const player of state.players) {
@@ -1515,13 +1610,13 @@ class CurveClashGame {
     this.updateAllInterface();
     const survivors = state.players.filter((player) => player.alive);
     if (survivors.length < 2) {
-      await delay(this.reducedMotion ? 150 : 550);
+      await this.wait(this.reducedMotion ? 150 : 550);
       if (this.isCurrent(version)) this.finishGame();
       return;
     }
 
     state.turn += 1;
-    await delay(this.reducedMotion ? 180 : 650);
+    await this.wait(this.reducedMotion ? 180 : 650);
     if (this.isCurrent(version)) this.beginInputPhase(version);
   }
 
@@ -1719,7 +1814,7 @@ class CurveClashGame {
     this.dom.equationInput.disabled = true;
     this.dom.timer.textContent = "REPLAY";
     this.updateAllInterface();
-    await delay(this.reducedMotion ? 120 : 500);
+    await this.wait(this.reducedMotion ? 120 : 500);
 
     let replayTurn = null;
     for (const shot of state.replay.shots) {
@@ -1741,7 +1836,7 @@ class CurveClashGame {
       state.currentShooterId = shooter.id;
       this.appendReplayEquation(shot);
       this.updateAllInterface();
-      await delay(this.reducedMotion ? 80 : 280);
+      await this.wait(this.reducedMotion ? 80 : 280);
       const completed = await this.animateReplayShot(shot, version);
       if (!completed || !this.isCurrent(version) || this.state !== state) return;
 
@@ -1754,7 +1849,7 @@ class CurveClashGame {
       state.currentTrace = null;
       state.stats.shots += 1;
       if (shooter.isHuman) state.stats.humanShots += 1;
-      await delay(this.reducedMotion ? 50 : 130);
+      await this.wait(this.reducedMotion ? 50 : 130);
       for (const pickup of shot.pickups.filter((entry) => entry.afterCraterIndex === -1)) {
         this.applyReplayPickup(pickup);
       }
@@ -1787,11 +1882,11 @@ class CurveClashGame {
         if (!appliedPickups.has(pickup)) this.applyReplayPickup(pickup);
       }
       this.updateAllInterface();
-      await delay(this.reducedMotion ? 110 : 520);
+      await this.wait(this.reducedMotion ? 110 : 520);
     }
 
     if (!this.isCurrent(version) || this.state !== state) return;
-    await delay(this.reducedMotion ? 180 : 800);
+    await this.wait(this.reducedMotion ? 180 : 800);
     if (!this.isCurrent(version) || this.state !== state) return;
     this.restoreReplaySnapshot(state.replay.finalSnapshot);
     state.replay.playing = false;
@@ -1823,8 +1918,9 @@ class CurveClashGame {
       beam: shot.beam
     };
     return new Promise((resolve) => {
-      const started = performance.now();
-      const step = (now) => {
+      const started = this.clock();
+      const step = () => {
+        const now = this.clock();
         if (!this.isCurrent(version) || this.state !== state) {
           resolve(false);
           return;
@@ -2048,6 +2144,11 @@ class CurveClashGame {
     this.dom.turnOrder.replaceChildren();
     for (const playerId of state.turnOrder) {
       const player = state.players.find((entry) => entry.id === playerId);
+      // The list is the running order, so it holds only the players who still
+      // have a turn. Someone knocked out during the turn being resolved stays
+      // for the rest of it, marked "out", exactly as their icon stays on the
+      // map; from the next turn on, the row is gone.
+      if (!player.alive && !player.eliminatedThisTurn) continue;
       const item = document.createElement("li");
       item.className = "turn-item";
       item.style.setProperty("--player-color", player.color);
@@ -2128,11 +2229,17 @@ class CurveClashGame {
     this.dom.canvas.style.height = `${Math.floor(this.state.height * scale)}px`;
   }
 
-  renderLoop(time) {
+  /**
+   * The world keeps being painted while the game is paused -- the arena has
+   * to stay on screen -- but it is painted from a stopped clock, so every
+   * curve, pulse and particle holds its frame.
+   */
+  renderLoop() {
+    const time = this.clock();
     const delta = Math.min(0.05, (time - this.lastFrameTime) / 1000);
     this.lastFrameTime = time;
     if (this.state && !this.dom.gameScreen.classList.contains("is-hidden")) this.drawWorld(time, delta);
-    requestAnimationFrame((next) => this.renderLoop(next));
+    requestAnimationFrame(() => this.renderLoop());
   }
 
   drawWorld(time) {
@@ -2512,7 +2619,7 @@ class CurveClashGame {
 
   spawnBurst(x, y, color, count = 16) {
     if (!this.state) return;
-    const now = performance.now();
+    const now = this.clock();
     for (let index = 0; index < count; index += 1) {
       this.state.particles.push({
         x,
@@ -2688,10 +2795,6 @@ function withAlpha(hex, alpha) {
   const number = Number.parseInt(value, 16);
   if (!Number.isFinite(number)) return `rgba(191,180,229,${alpha})`;
   return `rgba(${(number >> 16) & 255},${(number >> 8) & 255},${number & 255},${alpha})`;
-}
-
-function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function clamp(value, minimum, maximum) {

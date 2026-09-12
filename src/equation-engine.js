@@ -32,9 +32,10 @@ function resolveUnitPixels(value) {
   return Number.isFinite(unit) && unit > 0 ? unit : LOCAL_UNIT_PIXELS;
 }
 
-// abs() is deliberately excluded: it is not available to players.
+// abs() is included so that absolute-value bars, which every graphing
+// calculator accepts, have something to compile to.
 const SAFE_FUNCTIONS = new Set([
-  "acos", "acosh", "acot", "acoth", "acsc", "acsch", "asec",
+  "abs", "acos", "acosh", "acot", "acoth", "acsc", "acsch", "asec",
   "asech", "asin", "asinh", "atan", "atan2", "atanh", "cbrt", "ceil",
   "cos", "cosh", "cot", "coth", "csc", "csch", "exp", "expm1", "fix",
   "floor", "hypot", "log", "log10", "log1p", "log2",
@@ -55,36 +56,223 @@ export class EquationError extends Error {
   }
 }
 
-/** Convert common keyboard/Unicode notation into syntax understood by math.js. */
+/**
+ * LaTeX command names whose math.js spelling differs from the one a graphing
+ * calculator prints. Everything not listed here simply loses its backslash,
+ * which is already the right answer for \sin, \cos, \exp, \pi and friends.
+ */
+const LATEX_NAME_ALIASES = new Map([
+  ["arcsin", "asin"], ["arccos", "acos"], ["arctan", "atan"],
+  ["arccot", "acot"], ["arcsec", "asec"], ["arccsc", "acsc"],
+  ["arsinh", "asinh"], ["arcosh", "acosh"], ["artanh", "atanh"],
+  ["arcsinh", "asinh"], ["arccosh", "acosh"], ["arctanh", "atanh"],
+  ["lg", "log10"], ["infty", "Infinity"],
+  ["le", "\u2264"], ["leq", "\u2264"], ["ge", "\u2265"], ["geq", "\u2265"],
+  ["ne", "\u2260"], ["neq", "\u2260"], ["lt", "<"], ["gt", ">"]
+]);
+
+/** Spacing and layout commands that carry no mathematical meaning. */
+const LATEX_NOISE = /\\(?:displaystyle|textstyle|scriptstyle|limits|nolimits|quad|qquad|mathrm|mathit|text)\b|\\[,;:!]|\\ /g;
+
+const SUPERSCRIPT_CHARACTERS = {
+  "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
+  "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+  "⁺": "+", "⁻": "-", "⁽": "(", "⁾": ")"
+};
+const SUPERSCRIPT_RUN = /[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]+/g;
+
+// Sentinels for the two bar forms, kept apart from the bare `|` so that a
+// \left|...\right| pair can nest while bare bars only alternate.
+const ABS_OPEN = "\u0001";
+const ABS_CLOSE = "\u0002";
+
+/**
+ * Convert common keyboard, Unicode and LaTeX notation into syntax understood
+ * by math.js.
+ *
+ * The main source of LaTeX is a copy-paste out of Desmos, which writes every
+ * bracket as \left...\right, every exponent and root argument as a brace
+ * group, and every function name with a backslash, so
+ * `\sin\left(x\right)+\sqrt{\left(x-10\right)^{2}}` has to come out as
+ * `sin(x)+sqrt((x-10)^(2))`. Unicode superscripts (`x²`) and absolute-value
+ * bars (`|x|`, `\left|x\right|`) are handled here too.
+ */
 export function cleanMathInput(value) {
-  return String(value ?? "")
-    .trim()
+  let text = String(value ?? "").trim()
     .replace(/^\$+|\$+$/g, "")
-    .replace(/\\left|\\right/g, "")
+    .replace(LATEX_NOISE, " ")
     .replace(/\\cdot|\\times|[×·]/g, "*")
     .replace(/\\div|÷/g, "/")
-    // KaTeX-style operator names arrive with a leading backslash when an
-    // equation is pasted back out of the preview.
-    .replace(/\\(ln|log|exp|sqrt|sin|cos|tan)\b/g, "$1")
     .replace(/[−–—]/g, "-")
     .replace(/π/g, "pi")
     .replace(/∞/g, "Infinity")
-    .replace(/\*\*/g, "^")
+    .replace(/√/g, "\\sqrt")
+    .replace(SUPERSCRIPT_RUN, (run) => `^(${[...run].map((c) => SUPERSCRIPT_CHARACTERS[c]).join("")})`)
+    .replace(/\*\*/g, "^");
+
+  text = stripLeftRight(text);
+  text = text.replace(/\\operatorname\s*\{\s*([A-Za-z]+)\s*\}/g, "$1");
+  text = expandLatexMacros(text);
+  text = text.replace(/\\([A-Za-z]+)/g, (_match, name) => LATEX_NAME_ALIASES.get(name) ?? name);
+  text = text.replace(/[{}]/g, (brace) => (brace === "{" ? "(" : ")"));
+  text = convertAbsoluteBars(text);
+
+  return text
     // math.js spells the natural logarithm log(); ln() is the notation most
     // players actually type, so accept it as an exact synonym. Rewriting whole
     // identifiers keeps names such as "sln" or "lnx" untouched.
     .replace(/[A-Za-z_][A-Za-z0-9_]*/g, (name) => (name === "ln" ? "log" : name))
-    .replace(/\s+/g, " ");
+    // `x\left(x+1\right)` is a product to a calculator but a call to a parser,
+    // so a variable standing in front of a bracket gets its multiplication
+    // sign back. Function names are left alone: sin(x) really is a call.
+    .replace(/([A-Za-z_][A-Za-z0-9_]*)\s*\(/g, (match, name) => (
+      SAFE_SYMBOLS.has(name) ? `${name}*(` : match
+    ))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Drop \left and \right, keeping the delimiter they size. Bars become
+ * sentinels so the absolute-value pass can tell an explicitly paired bar from
+ * a bare one, and \left. / \right. vanish entirely.
+ */
+function stripLeftRight(text) {
+  return text
+    .replace(/\\left\s*\|/g, ABS_OPEN)
+    .replace(/\\right\s*\|/g, ABS_CLOSE)
+    .replace(/\\(?:left|right)\s*\\?([([{)\]}.])/g, (_match, delimiter) => {
+      if (delimiter === ".") return "";
+      if (delimiter === "{" || delimiter === "[") return "(";
+      if (delimiter === "}" || delimiter === "]") return ")";
+      return delimiter;
+    })
+    .replace(/\\(?:left|right)\b/g, "");
+}
+
+/**
+ * Rewrite the LaTeX macros that take brace arguments -- \frac and \sqrt --
+ * into calls. They are the only ones whose meaning depends on where their
+ * arguments end, so they need a brace matcher rather than a regex.
+ */
+function expandLatexMacros(text) {
+  let out = "";
+  let index = 0;
+  while (index < text.length) {
+    const fraction = /^\\[dt]?frac/.exec(text.slice(index));
+    if (fraction) {
+      const numerator = readLatexArgument(text, index + fraction[0].length);
+      const denominator = readLatexArgument(text, numerator.end);
+      out += `((${expandLatexMacros(numerator.body)})/(${expandLatexMacros(denominator.body)}))`;
+      index = denominator.end;
+      continue;
+    }
+    const root = /^\\sqrt/.exec(text.slice(index));
+    if (root) {
+      let cursor = index + root[0].length;
+      let degree = null;
+      if (text[cursor] === "[") {
+        const close = text.indexOf("]", cursor);
+        if (close !== -1) {
+          degree = text.slice(cursor + 1, close);
+          cursor = close + 1;
+        }
+      }
+      const radicand = readLatexArgument(text, cursor);
+      out += degree === null
+        ? `sqrt(${expandLatexMacros(radicand.body)})`
+        : `nthRoot((${expandLatexMacros(radicand.body)}), (${expandLatexMacros(degree)}))`;
+      index = radicand.end;
+      continue;
+    }
+    out += text[index];
+    index += 1;
+  }
+  return out;
+}
+
+/**
+ * Read one LaTeX argument starting at `start`: a bracketed group, a command,
+ * or the single character that `\sqrt2` and `\frac12` rely on.
+ */
+function readLatexArgument(text, start) {
+  let index = start;
+  while (index < text.length && /\s/.test(text[index])) index += 1;
+  if (index >= text.length) return { body: "", end: index };
+
+  // A brace group is the LaTeX form; a bracket group is what a hand-typed
+  // radical sign produces, since it is rewritten to \sqrt before this runs.
+  const closer = { "{": "}", "(": ")", "[": "]" }[text[index]];
+  if (closer) {
+    const opener = text[index];
+    let depth = 0;
+    for (let scan = index; scan < text.length; scan += 1) {
+      if (text[scan] === opener) depth += 1;
+      else if (text[scan] === closer) {
+        depth -= 1;
+        if (depth === 0) return { body: text.slice(index + 1, scan), end: scan + 1 };
+      }
+    }
+    // Unbalanced brackets: take the rest and let math.js report the problem.
+    return { body: text.slice(index + 1), end: text.length };
+  }
+
+  const command = /^\\[A-Za-z]+/.exec(text.slice(index));
+  if (command) return { body: command[0], end: index + command[0].length };
+  return { body: text[index], end: index + 1 };
+}
+
+/**
+ * Turn absolute-value bars into abs() calls. Explicit \left|...\right| pairs
+ * nest; bare bars alternate open/close, which is the only reading available
+ * without knowing what the author meant by `|x|y|`.
+ */
+function convertAbsoluteBars(text) {
+  const endsValue = (emitted) => /[0-9A-Za-z_.)\]]$/.test(emitted);
+  let out = "";
+  let bareOpen = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    const isBare = character === "|";
+    if (character !== ABS_OPEN && character !== ABS_CLOSE && !isBare) {
+      out += character;
+      continue;
+    }
+
+    const opening = character === ABS_OPEN || (isBare && !bareOpen);
+    if (isBare) bareOpen = !bareOpen;
+
+    if (opening) {
+      if (endsValue(out)) out += "*";
+      out += "abs(";
+    } else {
+      out += ")";
+      const next = text[index + 1];
+      if (next && /[0-9A-Za-z_.([]/.test(next)) out += "*";
+    }
+  }
+
+  // An unclosed bar would otherwise become an unbalanced parenthesis.
+  if (bareOpen) out += ")";
+  return out;
 }
 
 /**
  * Accept a right-hand expression as the primary player input. The interface
  * supplies the visible `f(x) =` prefix. Full `f(x) = expression` input remains
- * accepted for bot output and pasted equations, while every other equality is
- * rejected. Blank input remains the timer-expiry null shot.
+ * accepted for bot output and pasted equations, as does the `y = expression`
+ * a graphing calculator writes, while every other equality is rejected. Blank
+ * input remains the timer-expiry null shot.
  */
 export function normalizeEquation(source) {
   const cleaned = cleanMathInput(source);
+  if (/[<>\u2264\u2265\u2260]/.test(cleaned)) {
+    throw new EquationError(
+      "A shot is a function of x, so an inequality cannot be fired. Type only the expression after f(x) =.",
+      "FUNCTION_FORM_REQUIRED"
+    );
+  }
   if (!cleaned) {
     return {
       kind: "null",
@@ -108,9 +296,11 @@ export function normalizeEquation(source) {
   } else {
     const left = pieces[0].trim();
     expression = pieces[1].trim();
-    if (!/^f\s*\(\s*x\s*\)$/.test(left)) {
+    // `y = ...` is how a graphing calculator names the same function, so a
+    // paste keeps its left-hand side; every other equality is still refused.
+    if (!/^(?:f\s*\(\s*x\s*\)|y)$/.test(left)) {
       throw new EquationError(
-        "Type only the expression after f(x) =. Equations using y or another equals sign are not allowed.",
+        "Type only the expression after f(x) =. Another equals sign is not allowed.",
         "FUNCTION_FORM_REQUIRED"
       );
     }

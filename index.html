@@ -199,6 +199,15 @@
             <span id="timer-display" class="timer-display" aria-live="polite">03:00</span>
           </div>
           <div class="topbar-actions">
+            <!-- Pause is never gated on the phase: it is meant to work while a
+                 curve is being traced, which is exactly when a player needs to
+                 stop and look at what is happening. -->
+            <button
+              id="pause-btn"
+              class="text-button pause-button"
+              type="button"
+              title="Freeze the match, including a curve mid-trace (P)"
+            >Pause</button>
             <button
               id="sidebar-toggle"
               class="text-button sidebar-toggle"
@@ -216,6 +225,7 @@
           <section class="game-stage" aria-label="Game map">
             <div id="canvas-wrap" class="canvas-wrap">
               <canvas id="game-canvas" width="1200" height="720" aria-label="Equation battle map"></canvas>
+              <div id="paused-banner" class="paused-banner is-hidden" aria-hidden="true">Paused</div>
             </div>
 
             <section id="equation-dock" class="equation-dock" aria-labelledby="equation-heading">
@@ -268,7 +278,7 @@
                   <div id="latex-preview" class="latex-preview" aria-live="polite">
                     <span class="preview-placeholder">Your equation will appear here</span>
                   </div>
-                  <p id="equation-help" hidden>Type only the expression after f(x) =, in units of 50 px. It must pass through y = 0 at x = 0; ln() and exp() are available, min(), max() and abs() are not.</p>
+                  <p id="equation-help" hidden>Type only the expression after f(x) =, in units of 50 px. It must pass through y = 0 at x = 0; ln(), exp() and absolute values like |x| are available, min() and max() are not. Equations pasted from Desmos work as they are.</p>
                   <p id="equation-error" class="equation-error" role="alert"></p>
                 </div>
                 <button id="validate-btn" class="primary-button validate-button" type="submit">Validate shot</button>
